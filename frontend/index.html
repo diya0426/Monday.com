@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Skylark Drones – BI Agent</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3347;
+      --accent: #4f6ef7;
+      --accent2: #7b5cf0;
+      --text: #e2e5f0;
+      --muted: #7a8099;
+      --success: #22c55e;
+      --warn: #f59e0b;
+      --error: #ef4444;
+      --tool-bg: #0d1a0d;
+      --tool-border: #1f3a1f;
+      --user-bg: #1a1f35;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    header h1 { font-size: 16px; font-weight: 600; color: var(--text); }
+    header p { font-size: 12px; color: var(--muted); }
+    .status-dot {
+      width: 8px; height: 8px;
+      background: var(--success);
+      border-radius: 50%;
+      margin-left: auto;
+      box-shadow: 0 0 6px var(--success);
+    }
+    .status-label { font-size: 11px; color: var(--muted); }
+
+    /* Main layout */
+    main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Chat area */
+    #chat-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    #messages::-webkit-scrollbar { width: 6px; }
+    #messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Message bubbles */
+    .msg { display: flex; gap: 12px; max-width: 820px; }
+    .msg.user { flex-direction: row-reverse; align-self: flex-end; }
+    .msg.assistant { align-self: flex-start; }
+
+    .avatar {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .msg.user .avatar { background: var(--user-bg); border: 1px solid var(--border); }
+    .msg.assistant .avatar { background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+
+    .bubble {
+      padding: 12px 16px;
+      border-radius: 12px;
+      line-height: 1.6;
+      font-size: 14px;
+    }
+    .msg.user .bubble {
+      background: var(--user-bg);
+      border: 1px solid var(--border);
+      border-top-right-radius: 4px;
+    }
+    .msg.assistant .bubble {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top-left-radius: 4px;
+    }
+
+    /* Tool traces */
+    .tool-traces {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .tool-trace {
+      background: var(--tool-bg);
+      border: 1px solid var(--tool-border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .tool-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .tool-icon { font-size: 13px; }
+    .tool-name { font-size: 12px; font-weight: 600; color: #4ade80; font-family: monospace; }
+    .tool-status {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-left: auto;
+    }
+    .tool-status.success { background: #052a1a; color: #4ade80; border: 1px solid #166534; }
+    .tool-status.error { background: #2a0505; color: #f87171; border: 1px solid #991b1b; }
+    .tool-detail {
+      padding: 8px 12px;
+      border-top: 1px solid var(--tool-border);
+      font-size: 11px;
+      color: var(--muted);
+      font-family: monospace;
+      display: none;
+    }
+    .tool-trace.open .tool-detail { display: block; }
+    .tool-summary { font-size: 11px; color: #6ee7b7; padding: 2px 12px 8px; }
+
+    /* Typing indicator */
+    .typing-indicator { display: flex; gap: 4px; padding: 12px 16px; }
+    .typing-dot {
+      width: 7px; height: 7px;
+      background: var(--muted);
+      border-radius: 50%;
+      animation: bounce 1.2s infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-6px); opacity: 1; }
+    }
+
+    /* Input area */
+    #input-area {
+      padding: 16px 24px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+    }
+    .input-wrapper {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 10px 10px 16px;
+      transition: border-color 0.2s;
+    }
+    .input-wrapper:focus-within { border-color: var(--accent); }
+    #user-input {
+      flex: 1;
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-size: 14px;
+      resize: none;
+      font-family: inherit;
+      max-height: 120px;
+      line-height: 1.5;
+    }
+    #user-input::placeholder { color: var(--muted); }
+    #send-btn {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      color: white;
+      font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: opacity 0.2s;
+    }
+    #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #send-btn:hover:not(:disabled) { opacity: 0.85; }
+
+    /* Suggestions */
+    .suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .suggestion-chip {
+      padding: 6px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .suggestion-chip:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    /* Markdown-like formatting in bubbles */
+    .bubble strong { color: #a5b4fc; font-weight: 600; }
+    .bubble em { color: var(--warn); font-style: normal; }
+    .bubble code {
+      background: #1e2035;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .bubble ul, .bubble ol { padding-left: 20px; }
+    .bubble li { margin: 3px 0; }
+    .bubble p { margin: 6px 0; }
+    .bubble h3 { color: #a5b4fc; margin: 10px 0 4px; font-size: 14px; }
+    .bubble h4 { color: var(--muted); margin: 8px 0 4px; font-size: 13px; }
+    .bubble hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Welcome message */
+    .welcome {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--muted);
+    }
+    .welcome h2 { color: var(--text); font-size: 20px; margin-bottom: 8px; }
+    .welcome p { font-size: 14px; line-height: 1.6; max-width: 400px; margin: 0 auto 20px; }
+
+    /* Error toast */
+    #error-toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #2a0505;
+      border: 1px solid var(--error);
+      color: #f87171;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      display: none;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🚁</div>
+  <div>
+    <h1>Skylark Drones — BI Agent</h1>
+    <p>Monday.com Live Intelligence</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
+    <div class="status-dot" id="status-dot"></div>
+    <span class="status-label" id="status-label">Connecting...</span>
+  </div>
+</header>
+
+<main>
+  <div id="chat-area">
+    <div id="messages">
+      <div class="welcome" id="welcome">
+        <div style="font-size:48px;margin-bottom:16px;">📊</div>
+        <h2>Business Intelligence Agent</h2>
+        <p>Ask me anything about your pipeline, revenue, work orders, or sector performance. I'll query your Monday.com boards live.</p>
+        <div class="suggestions" style="justify-content:center;margin-top:16px;">
+          <div class="suggestion-chip" onclick="sendSuggestion(this)">How's our overall pipeline?</div>
+          <div class="suggestion-chip" onclick="sendSuggestion(this)">Mining sector performance?</div>
+          <div class="suggestion-chip" onclick="sendSuggestion(this)">Revenue & collection status</div>
+          <div class="suggestion-chip" onclick="sendSuggestion(this)">Top deals by value</div>
+          <div class="suggestion-chip" onclick="sendSuggestion(this)">Which deals are closing this quarter?</div>
+          <div class="suggestion-chip" onclick="sendSuggestion(this)">Accounts receivable summary</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="input-area">
+      <div class="suggestions" id="quick-chips" style="display:none;">
+        <div class="suggestion-chip" onclick="sendSuggestion(this)">Pipeline health</div>
+        <div class="suggestion-chip" onclick="sendSuggestion(this)">Energy sector deals</div>
+        <div class="suggestion-chip" onclick="sendSuggestion(this)">Revenue metrics</div>
+        <div class="suggestion-chip" onclick="sendSuggestion(this)">Work order status</div>
+      </div>
+      <div class="input-wrapper">
+        <textarea id="user-input" rows="1" placeholder="Ask a business question... e.g. How's our energy sector pipeline?" 
+          onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <button id="send-btn" onclick="sendMessage()">➤</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="error-toast"></div>
+
+<script>
+  const API_BASE = window.location.origin;
+  let conversationHistory = [];
+  let isLoading = false;
+
+  // ── Startup: Check health ─────────────────────────────────────────────────
+  async function checkHealth() {
+    try {
+      const res = await fetch(`${API_BASE}/health`);
+      const data = await res.json();
+      const ok = data.status === 'ok' && data.gemini_configured && data.monday_configured;
+      document.getElementById('status-dot').style.background = ok ? '#22c55e' : '#f59e0b';
+      document.getElementById('status-dot').style.boxShadow = ok 
+        ? '0 0 6px #22c55e' : '0 0 6px #f59e0b';
+      document.getElementById('status-label').textContent = ok ? 'Live' : 'Check config';
+    } catch {
+      document.getElementById('status-dot').style.background = '#ef4444';
+      document.getElementById('status-label').textContent = 'Offline';
+    }
+  }
+
+  checkHealth();
+
+  // ── UI Helpers ────────────────────────────────────────────────────────────
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  function sendSuggestion(el) {
+    document.getElementById('user-input').value = el.textContent;
+    sendMessage();
+  }
+
+  function showError(msg) {
+    const toast = document.getElementById('error-toast');
+    toast.textContent = '⚠️ ' + msg;
+    toast.style.display = 'block';
+    setTimeout(() => toast.style.display = 'none', 5000);
+  }
+
+  function scrollToBottom() {
+    const msgs = document.getElementById('messages');
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  // ── Simple markdown renderer ───────────────────────────────────────────────
+  function renderMarkdown(text) {
+    return text
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+      .replace(/^[-•] (.+)$/gm, '<li>$1</li>')
+      .replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`)
+      .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+      .replace(/^---$/gm, '<hr>')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/^([^<\n].+)$/gm, '$1')
+      .replace(/\n/g, '<br>');
+  }
+
+  // ── Append message to UI ──────────────────────────────────────────────────
+  function appendMessage(role, content, toolTraces = []) {
+    const welcome = document.getElementById('welcome');
+    if (welcome) welcome.remove();
+    document.getElementById('quick-chips').style.display = 'flex';
+
+    const msgs = document.getElementById('messages');
+
+    // Tool traces (shown before assistant bubble)
+    if (toolTraces.length > 0) {
+      const tracesDiv = document.createElement('div');
+      tracesDiv.className = 'tool-traces';
+      tracesDiv.style.maxWidth = '820px';
+      tracesDiv.style.alignSelf = 'flex-start';
+      tracesDiv.style.width = '100%';
+
+      toolTraces.forEach((trace, i) => {
+        const traceEl = document.createElement('div');
+        traceEl.className = 'tool-trace';
+        const statusClass = trace.status === 'success' ? 'success' : 'error';
+        const statusText = trace.status === 'success' ? '✓ success' : '✗ error';
+        const inputStr = JSON.stringify(trace.input || {}, null, 0);
+        const errStr = trace.error ? `\nError: ${trace.error}` : '';
+
+        traceEl.innerHTML = `
+          <div class="tool-header" onclick="toggleTrace(this)">
+            <span class="tool-icon">🔧</span>
+            <span class="tool-name">${trace.tool}(${inputStr})</span>
+            <span class="tool-status ${statusClass}">${statusText}</span>
+          </div>
+          ${trace.output_summary ? `<div class="tool-summary">↳ ${trace.output_summary}</div>` : ''}
+          <div class="tool-detail">${inputStr}${errStr}</div>
+        `;
+        tracesDiv.appendChild(traceEl);
+      });
+
+      msgs.appendChild(tracesDiv);
+    }
+
+    // Message bubble
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `msg ${role}`;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = role === 'user' ? '👤' : '🤖';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+
+    if (role === 'assistant') {
+      bubble.innerHTML = `<p>${renderMarkdown(content)}</p>`;
+    } else {
+      bubble.textContent = content;
+    }
+
+    msgDiv.appendChild(avatar);
+    msgDiv.appendChild(bubble);
+    msgs.appendChild(msgDiv);
+    scrollToBottom();
+    return msgDiv;
+  }
+
+  function toggleTrace(headerEl) {
+    headerEl.closest('.tool-trace').classList.toggle('open');
+  }
+
+  // ── Typing indicator ──────────────────────────────────────────────────────
+  function showTyping() {
+    const msgs = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = 'msg assistant';
+    div.id = 'typing';
+    div.innerHTML = `
+      <div class="avatar">🤖</div>
+      <div class="bubble">
+        <div class="typing-indicator">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      </div>`;
+    msgs.appendChild(div);
+    scrollToBottom();
+  }
+
+  function hideTyping() {
+    const typing = document.getElementById('typing');
+    if (typing) typing.remove();
+  }
+
+  // ── Send message ──────────────────────────────────────────────────────────
+  async function sendMessage() {
+    if (isLoading) return;
+    const input = document.getElementById('user-input');
+    const text = input.value.trim();
+    if (!text) return;
+
+    isLoading = true;
+    input.value = '';
+    input.style.height = 'auto';
+    document.getElementById('send-btn').disabled = true;
+
+    // Add to history and UI
+    conversationHistory.push({ role: 'user', content: text });
+    appendMessage('user', text);
+    showTyping();
+
+    try {
+      const res = await fetch(`${API_BASE}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: conversationHistory })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Request failed');
+      }
+
+      const data = await res.json();
+      hideTyping();
+
+      conversationHistory.push({ role: 'assistant', content: data.response });
+      appendMessage('assistant', data.response, data.tool_traces || []);
+
+    } catch (err) {
+      hideTyping();
+      showError(err.message);
+      appendMessage('assistant', `⚠️ Error: ${err.message}\n\nPlease check that the backend is running and Monday.com is configured.`, []);
+    } finally {
+      isLoading = false;
+      document.getElementById('send-btn').disabled = false;
+      input.focus();
+    }
+  }
+</script>
+</body>
+</html>
